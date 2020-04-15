@@ -1,23 +1,4 @@
 "use strict";
-/*window.onload = () => {
-  // HTMLにあるcanvasを持ってくる
-  let canvas = document.getElementById("canvas");
-  if (canvas === null || !(canvas instanceof HTMLCanvasElement)) return;
-  let context = canvas.getContext("2d");
-  if (context === null) return;
-
-  // スクリーンになるcanvasを作成
-  let screenCanvas: HTMLCanvasElement = document.createElement("canvas");
-  let screenContext = screenCanvas.getContext("2d");
-  if (screenContext === null) return;
-
-  // スクリーンに描画
-  screenContext.fillStyle = "red";
-  screenContext.fillRect(50, 50, 30, 30);
-
-  // メインのcanvasに描画
-  context.drawImage(screenCanvas, 0, 0);
-}*/
 function imageLoader(sources, callback = () => { }, progress = {
     registeredCount: 0,
     finishedCount: 0,
@@ -113,13 +94,6 @@ function draw() {
         tex1.draw(100, 80, layers, imageLoadingProgress.loadedImage);
         tex1.draw(80, 100, layers, imageLoadingProgress.loadedImage);
         tex2.draw(100, 93, layers, imageLoadingProgress.loadedImage);
-        /*
-        layers[0].fillStyle = "red";
-        layers[0].fillRect(100, 100, 200, 200);
-        layers[1].clearRect(0, 0, 256, 256);
-        layers[1].fillStyle = "blue";
-        layers[1].fillRect(Math.random() * 300, Math.random() * 300, Math.random() * 200, Math.random() * 200);
-        */
         if (counter % 60 === 0)
             document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
         composit();
