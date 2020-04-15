@@ -309,7 +309,7 @@ function draw(){
   const layers: CanvasRenderingContext2D[] = [];
   for(var i = 0; i < layerNum; i++) 
     layers.push(create2dScreen(layerW, layerH));
-
+  
   const vssource:string = `
   attribute vec3 position;
   attribute vec2 textureCoord;
@@ -392,9 +392,14 @@ function draw(){
   for(let i = 0; i < layerNum; i++)
     document.body.appendChild(layers[i].canvas);
     document.body.appendChild(gl.canvas);
+    let counter = 0;
+    let start = performance.now();
   loop();
 
+
   function loop(): void {
+    counter++;
+
     clearLayers(layers);
 
     tex0.draw(64, 64, layers, imageLoadingProgress.loadedImage);
@@ -419,6 +424,8 @@ function draw(){
     layers[1].fillStyle = "blue";
     layers[1].fillRect(Math.random() * 300, Math.random() * 300, Math.random() * 200, Math.random() * 200);
     */
+    if(counter % 60 === 0) 
+      document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
     composit();
     requestAnimationFrame(loop);
   }
