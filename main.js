@@ -90,85 +90,10 @@ function draw() {
     const layers = [];
     for (var i = 0; i < layerNum; i++)
         layers.push(create2dScreen(layerW, layerH));
-    const vssource = `
-  attribute vec3 position;
-  attribute vec2 textureCoord;
-
-  varying   vec2 vTextureCoord;
-
-  void main(void){
-    vTextureCoord = textureCoord;
-    gl_Position   = vec4(position, 1.0);
-  }`;
-    const fssource = `precision mediump float;
-
-  uniform sampler2D texture0;
-  uniform sampler2D texture1;
-  uniform sampler2D texture2;
-  uniform sampler2D texture3;
-  uniform sampler2D texture4;
-  uniform sampler2D texture5;
-  uniform sampler2D texture6;
-  uniform sampler2D texture7;
-  
-  varying vec2      vTextureCoord;
-  
-  const vec2 direction = vec2(-3, -3) * 0.00390625;
-  
-  void main(void){
-      float shadow = 
-          0.5 < texture2D(texture7, vTextureCoord).a ? 0.0
-          : 0.5 < texture2D(texture6, vTextureCoord).a ? 
-              texture2D(texture7, vTextureCoord + direction).a
-          : 0.5 < texture2D(texture5, vTextureCoord).a ? 
-              max(texture2D(texture6, vTextureCoord + direction).a,
-              texture2D(texture7, vTextureCoord + direction * 2.0).a)
-          : 0.5 < texture2D(texture4, vTextureCoord).a ? 
-              max(texture2D(texture5, vTextureCoord + direction).a,
-              max(texture2D(texture6, vTextureCoord + direction * 2.0).a,
-              texture2D(texture7, vTextureCoord + direction * 3.0).a ))
-          : 0.5 < texture2D(texture3, vTextureCoord).a ? 
-              max(texture2D(texture4, vTextureCoord + direction).a,
-              max(texture2D(texture5, vTextureCoord + direction * 2.0).a,
-              max(texture2D(texture6, vTextureCoord + direction * 3.0).a,
-              texture2D(texture7, vTextureCoord + direction * 4.0).a )))
-          : 0.5 < texture2D(texture2, vTextureCoord).a ? 
-              max(texture2D(texture3, vTextureCoord + direction).a,
-              max(texture2D(texture4, vTextureCoord + direction * 2.0).a,
-              max(texture2D(texture5, vTextureCoord + direction * 3.0).a,
-              max(texture2D(texture6, vTextureCoord + direction * 4.0).a,
-              texture2D(texture7, vTextureCoord + direction * 5.0).a )))) : 1.0;
-      gl_FragColor = mix(texture2D(texture0, vTextureCoord), texture2D(texture1, vTextureCoord), shadow);
-  }`;
-    const polygon = {
-        position: [
-            -1.0, 1.0,
-            1.0, 1.0,
-            -1.0, -1.0,
-            1.0, -1.0,
-        ],
-        textureCoord: [
-            (1 - compositW / layerW) / 2, (1 - compositH / layerH) / 2,
-            (1 + compositW / layerW) / 2, (1 - compositH / layerH) / 2,
-            (1 - compositW / layerW) / 2, (1 + compositH / layerH) / 2,
-            (1 + compositW / layerW) / 2, (1 + compositH / layerH) / 2
-        ],
-        index: [
-            0, 1, 2,
-            3, 2, 1
-        ]
-    };
-    const gl = createGlScreen(compositW, compositH);
-    const prg = createProgram(createVertexShader(vssource), createFragmentShader(fssource));
-    // VBOとIBOの登録
-    setAttribute(createVbo(polygon.position), gl.getAttribLocation(prg, 'position'), 2);
-    setAttribute(createVbo(polygon.textureCoord), gl.getAttribLocation(prg, 'textureCoord'), 2);
-    gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, createIbo(polygon.index));
-    for (let i = 0; i < layerNum; i++)
-        gl.uniform1i(gl.getUniformLocation(prg, 'texture' + i), i);
+    const composition = create2dScreen(compositW, compositH);
     for (let i = 0; i < layerNum; i++)
         document.body.appendChild(layers[i].canvas);
-    document.body.appendChild(gl.canvas);
+    document.body.appendChild(composition.canvas);
     let counter = 0;
     let start = performance.now();
     loop();
@@ -206,18 +131,26 @@ function draw() {
         }
     }
     function composit() {
-        // canvasを初期化
-        gl.clearColor(0.0, 0.0, 0.0, 1.0);
-        gl.clearDepth(1.0);
-        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
-        const textures = [];
-        for (let i = 0; i < layerNum; i++)
-            textures[i] = attachImage(layers[i].canvas, i);
-        gl.drawElements(gl.TRIANGLES, polygon.index.length, gl.UNSIGNED_SHORT, 0);
-        textures.forEach(t => gl.deleteTexture(t));
-        gl.flush();
+        const compositOffsetX = -(compositW - layerW) / 2;
+        const compositOffsetY = -(compositH - layerH) / 2;
+        const directionX = 3;
+        const directionY = 3;
+        composition.clearRect(0, 0, compositW, compositH);
+        for (let j = 2; j < layerNum; j++) {
+            //手前の影をずらしながら重ねて
+            composition.globalCompositeOperation = "source-over";
+            for (let i = j; i < layerNum; i++)
+                composition.drawImage(layers[i].canvas, compositOffsetX + directionX * (i - 2), compositOffsetY + directionY * (i - 2));
+            //打ち抜く
+            composition.globalCompositeOperation = "destination-out";
+            composition.drawImage(layers[j].canvas, compositOffsetX, compositOffsetY);
+        }
+        composition.globalCompositeOperation = "source-atop";
+        composition.drawImage(layers[1].canvas, compositOffsetX, compositOffsetY);
+        composition.globalCompositeOperation = "destination-over";
+        composition.drawImage(layers[0].canvas, compositOffsetX, compositOffsetY);
         context.clearRect(0, 0, 400, 400);
-        context.drawImage(gl.canvas, 0, 0, 400, 400);
+        context.drawImage(composition.canvas, 0, 0, 400, 400);
     }
     function create2dScreen(width, height) {
         let canvas = document.createElement("canvas");
@@ -228,94 +161,4 @@ function draw() {
             throw new Error("failed to get 2D context");
         return context;
     }
-    function createGlScreen(width, height) {
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        // webglコンテキストを取得
-        const context = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
-        if (context === null || !(context instanceof WebGLRenderingContext))
-            throw new Error("failed to get GL context");
-        return context;
-    }
-    // VBOをバインドし登録する関数
-    function setAttribute(vbo, location, attS) {
-        // バッファをバインドする
-        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-        // attributeLocationを有効にする
-        gl.enableVertexAttribArray(location);
-        // attributeLocationを通知し登録する
-        gl.vertexAttribPointer(location, attS, gl.FLOAT, false, 0, 0);
-    }
-    // 頂点シェーダの生成
-    function createVertexShader(source) {
-        const vs = gl.createShader(gl.VERTEX_SHADER);
-        if (vs === null)
-            throw new Error("failed to create v-shader");
-        gl.shaderSource(vs, source);
-        gl.compileShader(vs);
-        if (!gl.getShaderParameter(vs, gl.COMPILE_STATUS)) {
-            console.log(gl.getShaderInfoLog(vs));
-            throw new Error("failed to compile v-shader");
-        }
-        return vs;
-    }
-    function createFragmentShader(source) {
-        const fs = gl.createShader(gl.FRAGMENT_SHADER);
-        if (fs === null)
-            throw new Error("failed to create f-shader");
-        gl.shaderSource(fs, source);
-        gl.compileShader(fs);
-        if (!gl.getShaderParameter(fs, gl.COMPILE_STATUS)) {
-            console.log(gl.getShaderInfoLog(fs));
-            throw new Error("failed to compile f-shader");
-        }
-        return fs;
-    }
-    // プログラムオブジェクトの生成
-    function createProgram(vs, fs) {
-        const prg = gl.createProgram();
-        if (prg === null)
-            throw new Error("failed to create shader program");
-        gl.attachShader(prg, vs);
-        gl.attachShader(prg, fs);
-        gl.linkProgram(prg);
-        if (!gl.getProgramParameter(prg, gl.LINK_STATUS)) {
-            console.log(gl.getProgramInfoLog(prg));
-            throw new Error("failed to link shader program");
-        }
-        gl.useProgram(prg);
-        return prg;
-    }
-    // VBOを生成する関数
-    function createVbo(data) {
-        var vbo = gl.createBuffer();
-        if (vbo === null)
-            throw new Error("failed to create VBO");
-        gl.bindBuffer(gl.ARRAY_BUFFER, vbo);
-        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(data), gl.STATIC_DRAW);
-        gl.bindBuffer(gl.ARRAY_BUFFER, null);
-        return vbo;
-    }
-    // IBOを生成する関数
-    function createIbo(data) {
-        var ibo = gl.createBuffer();
-        if (ibo === null)
-            throw new Error("failed to create IBO");
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
-        gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Int16Array(data), gl.STATIC_DRAW);
-        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, null);
-        return ibo;
-    }
-    // テクスチャを生成する関数
-    function attachImage(image, index) {
-        const texture = gl.createTexture();
-        if (texture === null)
-            throw new Error("failed to create texture");
-        gl.activeTexture(gl.TEXTURE0 + index);
-        gl.bindTexture(gl.TEXTURE_2D, texture);
-        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, image);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        return texture;
-    }
-} //*/
+}
