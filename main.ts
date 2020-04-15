@@ -18,6 +18,7 @@
   context.drawImage(screenCanvas, 0, 0);
 }*/
 
+/*
 onload = function(){
   let vssource:string = `
   attribute vec3 position;
@@ -219,4 +220,64 @@ onload = function(){
       img.src = source;
   }
   
-};
+};*/
+
+type ImageResources = Map<string, HTMLImageElement>;
+interface ImageLoadingProgress {
+  finishedCount: number;
+  registeredCount: number;
+  loadedImage: ImageResources;
+}
+function imageLoader(sources: string[], callback: ()=>void = () => { }, progress: ImageLoadingProgress = {
+    registeredCount: 0,
+    finishedCount: 0,
+    loadedImage: new Map()
+  }) {
+  progress.registeredCount += sources.length;
+  
+  sources.forEach(source => {
+    const image = new Image();
+    image.onload = function() {
+      progress.loadedImage.set(source, image);
+      progress.finishedCount++;
+      if (progress.registeredCount === progress.finishedCount)
+        callback();
+    }
+    image.src = source;
+  });
+
+  return progress;
+}
+
+interface Texture {
+  // これの実装を色々にしてアニメーションなどを表現する
+  draw: (x:number, y:number, context:CanvasRenderingContext2D, resources:ImageResources) => void;
+}
+
+// ただの（アニメーションしない）テクスチャを作る
+function texture(source: string, offsetX: number, offsetY: number): Texture{
+  return {
+    draw: (x:number, y:number, context:CanvasRenderingContext2D, resources:ImageResources) => {
+      const img = resources.get(source);
+      if (img === undefined) { console.log("not loaded yet"); return; }
+      context.drawImage(img, offsetX + x, offsetY + y)
+    }
+  }
+}
+
+// 使いたい画像を配列で指定してロードにかける。ロードが終わったときに呼ぶ関数を指定しとく。第三引数は以前のLoadingProgressに引き続きロードしたい時に使う。
+let imageLoadingProgress = imageLoader(["texture.png", "bar.png"], () => { /* ゲーム開始処理 */});
+
+// sourceをID代わりにしてコンストラクタに指定
+let tex0 = texture("texture.png", 0, 0);
+
+function draw() {
+  // HTMLにあるcanvasを持ってくる
+  let canvas = document.getElementById("canvas");
+  if (canvas === null || !(canvas instanceof HTMLCanvasElement)) return;
+  let context = canvas.getContext("2d");
+  if (context === null) return;
+  
+  // こんな感じで呼び出す？
+  tex0.draw(3, 5, context, imageLoadingProgress.loadedImage);
+}
