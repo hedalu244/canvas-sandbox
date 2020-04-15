@@ -336,29 +336,29 @@ function draw(){
   const vec2 direction = vec2(-3, -3) * 0.00390625;
   
   void main(void){
-      float light = 
-          texture2D(texture7, vTextureCoord).x < 0.5 ? 1.0
-          : texture2D(texture6, vTextureCoord).x < 0.5 ? 
-              texture2D(texture7, vTextureCoord + direction).x
-          : texture2D(texture5, vTextureCoord).x < 0.5 ? 
-              min(texture2D(texture6, vTextureCoord + direction).x,
-              texture2D(texture7, vTextureCoord + direction * 2.0).x)
-          : texture2D(texture4, vTextureCoord).x < 0.5 ? 
-              min(texture2D(texture5, vTextureCoord + direction).x,
-              min(texture2D(texture6, vTextureCoord + direction * 2.0).x,
-              texture2D(texture7, vTextureCoord + direction * 3.0).x ))
-          : texture2D(texture3, vTextureCoord).x < 0.5 ? 
-              min(texture2D(texture4, vTextureCoord + direction).x,
-              min(texture2D(texture5, vTextureCoord + direction * 2.0).x,
-              min(texture2D(texture6, vTextureCoord + direction * 3.0).x,
-              texture2D(texture7, vTextureCoord + direction * 4.0).x )))
-          : texture2D(texture2, vTextureCoord).x < 0.5 ? 
-              min(texture2D(texture3, vTextureCoord + direction).x,
-              min(texture2D(texture4, vTextureCoord + direction * 2.0).x,
-              min(texture2D(texture5, vTextureCoord + direction * 3.0).x,
-              min(texture2D(texture6, vTextureCoord + direction * 4.0).x,
-              texture2D(texture7, vTextureCoord + direction * 5.0).x )))) : 0.0;
-      gl_FragColor = mix(texture2D(texture1, vTextureCoord), texture2D(texture0, vTextureCoord), light);
+      float shadow = 
+          0.5 < texture2D(texture7, vTextureCoord).a ? 0.0
+          : 0.5 < texture2D(texture6, vTextureCoord).a ? 
+              texture2D(texture7, vTextureCoord + direction).a
+          : 0.5 < texture2D(texture5, vTextureCoord).a ? 
+              max(texture2D(texture6, vTextureCoord + direction).a,
+              texture2D(texture7, vTextureCoord + direction * 2.0).a)
+          : 0.5 < texture2D(texture4, vTextureCoord).a ? 
+              max(texture2D(texture5, vTextureCoord + direction).a,
+              max(texture2D(texture6, vTextureCoord + direction * 2.0).a,
+              texture2D(texture7, vTextureCoord + direction * 3.0).a ))
+          : 0.5 < texture2D(texture3, vTextureCoord).a ? 
+              max(texture2D(texture4, vTextureCoord + direction).a,
+              max(texture2D(texture5, vTextureCoord + direction * 2.0).a,
+              max(texture2D(texture6, vTextureCoord + direction * 3.0).a,
+              texture2D(texture7, vTextureCoord + direction * 4.0).a )))
+          : 0.5 < texture2D(texture2, vTextureCoord).a ? 
+              max(texture2D(texture3, vTextureCoord + direction).a,
+              max(texture2D(texture4, vTextureCoord + direction * 2.0).a,
+              max(texture2D(texture5, vTextureCoord + direction * 3.0).a,
+              max(texture2D(texture6, vTextureCoord + direction * 4.0).a,
+              texture2D(texture7, vTextureCoord + direction * 5.0).a )))) : 1.0;
+      gl_FragColor = mix(texture2D(texture0, vTextureCoord), texture2D(texture1, vTextureCoord), shadow);
   }`;
   const polygon = {
   position: [
@@ -426,8 +426,6 @@ function draw(){
   function clearLayers(layers: CanvasRenderingContext2D[]): void {
     for(var i = 0; i < layerNum; i++) {
       layers[i].clearRect(0, 0, layerW, layerH);
-      layers[i].fillStyle = "white";
-      layers[i].fillRect(0, 0, layerW, layerH);
     }
   }
   
