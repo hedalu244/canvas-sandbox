@@ -278,15 +278,17 @@ function createStaticVolumeTexture(source: string, offsetX:number, offsetY:numbe
 }
 
 // 使いたい画像を配列で指定してロードにかける。ロードが終わったときに呼ぶ関数を指定しとく。第三引数は以前のLoadingProgressに引き続きロードしたい時に使う。
-let imageLoadingProgress = imageLoader(["volumeTest.png", "texture.png"], draw);
+let imageLoadingProgress = imageLoader(["volumeTest0.png", "volumeTest1.png", "volumeTest2.png"], draw);
 // sourceをID代わりにしてコンストラクタに指定
-let tex0 = createStaticVolumeTexture("volumeTest.png", 0, 0, 32);
+let tex0 = createStaticVolumeTexture("volumeTest0.png", 0, 0, 32);
+let tex1 = createStaticVolumeTexture("volumeTest1.png", 0, 0, 32);
+let tex2 = createStaticVolumeTexture("volumeTest2.png", 0, 0, 32);
 
 const layerNum = 8;
-const layerX = 256;
-const layerY = 256;
-const composeX = 200;
-const composeY = 200;
+const layerW = 256;
+const layerH = 256;
+const compositW = 200;
+const compositH = 200;
 
 
 function draw(){
@@ -306,7 +308,7 @@ function draw(){
 
   const layers: CanvasRenderingContext2D[] = [];
   for(var i = 0; i < layerNum; i++) 
-    layers.push(create2dScreen(layerX, layerY));
+    layers.push(create2dScreen(layerW, layerH));
 
   const vssource:string = `
   attribute vec3 position;
@@ -318,18 +320,45 @@ function draw(){
     vTextureCoord = textureCoord;
     gl_Position   = vec4(position, 1.0);
   }`;
-  const fssource:string = `
-  precision mediump float;
+  const fssource:string = `precision mediump float;
 
   uniform sampler2D texture0;
   uniform sampler2D texture1;
-
+  uniform sampler2D texture2;
+  uniform sampler2D texture3;
+  uniform sampler2D texture4;
+  uniform sampler2D texture5;
+  uniform sampler2D texture6;
+  uniform sampler2D texture7;
+  
   varying vec2      vTextureCoord;
-
+  
+  const vec2 direction = vec2(-3, -3) * 0.00390625;
+  
   void main(void){
-      vec4 smpColor0 = texture2D(texture0, vTextureCoord);
-      vec4 smpColor1 = texture2D(texture1, vTextureCoord);
-      gl_FragColor  = smpColor0 + smpColor1;
+      float light = 
+          texture2D(texture7, vTextureCoord).x < 0.5 ? 1.0
+          : texture2D(texture6, vTextureCoord).x < 0.5 ? 
+              texture2D(texture7, vTextureCoord + direction).x
+          : texture2D(texture5, vTextureCoord).x < 0.5 ? 
+              min(texture2D(texture6, vTextureCoord + direction).x,
+              texture2D(texture7, vTextureCoord + direction * 2.0).x)
+          : texture2D(texture4, vTextureCoord).x < 0.5 ? 
+              min(texture2D(texture5, vTextureCoord + direction).x,
+              min(texture2D(texture6, vTextureCoord + direction * 2.0).x,
+              texture2D(texture7, vTextureCoord + direction * 3.0).x ))
+          : texture2D(texture3, vTextureCoord).x < 0.5 ? 
+              min(texture2D(texture4, vTextureCoord + direction).x,
+              min(texture2D(texture5, vTextureCoord + direction * 2.0).x,
+              min(texture2D(texture6, vTextureCoord + direction * 3.0).x,
+              texture2D(texture7, vTextureCoord + direction * 4.0).x )))
+          : texture2D(texture2, vTextureCoord).x < 0.5 ? 
+              min(texture2D(texture3, vTextureCoord + direction).x,
+              min(texture2D(texture4, vTextureCoord + direction * 2.0).x,
+              min(texture2D(texture5, vTextureCoord + direction * 3.0).x,
+              min(texture2D(texture6, vTextureCoord + direction * 4.0).x,
+              texture2D(texture7, vTextureCoord + direction * 5.0).x )))) : 0.0;
+      gl_FragColor = mix(texture2D(texture1, vTextureCoord), texture2D(texture0, vTextureCoord), light);
   }`;
   const polygon = {
   position: [
@@ -339,17 +368,17 @@ function draw(){
      1.0, -1.0,
   ],
   textureCoord: [
-    (1 - composeX / layerX) / 2, (1 - composeY / layerY) / 2,
-    (1 + composeX / layerX) / 2, (1 - composeY / layerY) / 2,
-    (1 - composeX / layerX) / 2, (1 + composeY / layerY) / 2,
-    (1 + composeX / layerX) / 2, (1 + composeY / layerY) / 2
+    (1 - compositW / layerW) / 2, (1 - compositH / layerH) / 2,
+    (1 + compositW / layerW) / 2, (1 - compositH / layerH) / 2,
+    (1 - compositW / layerW) / 2, (1 + compositH / layerH) / 2,
+    (1 + compositW / layerW) / 2, (1 + compositH / layerH) / 2
   ],
   index: [
     0, 1, 2,
     3, 2, 1
   ]};
 
-  const gl = createGlScreen(composeX, composeY);
+  const gl = createGlScreen(compositW, compositH);
   const prg = createProgram(createVertexShader(vssource), createFragmentShader(fssource));
 
   // VBOとIBOの登録
@@ -366,7 +395,23 @@ function draw(){
   loop();
 
   function loop(): void {
-    tex0.draw(100, 100, layers, imageLoadingProgress.loadedImage);
+    clearLayers(layers);
+
+    tex0.draw(64, 64, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(96, 64, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(128, 64, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(64, 96, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(96, 96, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(128, 96, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(64, 128, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(96, 128, layers, imageLoadingProgress.loadedImage);
+    tex0.draw(128, 128, layers, imageLoadingProgress.loadedImage);
+
+    tex1.draw(80, 80, layers, imageLoadingProgress.loadedImage);
+    tex1.draw(100, 80, layers, imageLoadingProgress.loadedImage);
+    tex1.draw(80, 100, layers, imageLoadingProgress.loadedImage);
+    
+    tex2.draw(100, 93, layers, imageLoadingProgress.loadedImage);
     /*
     layers[0].fillStyle = "red";
     layers[0].fillRect(100, 100, 200, 200);
@@ -378,6 +423,14 @@ function draw(){
     requestAnimationFrame(loop);
   }
 
+  function clearLayers(layers: CanvasRenderingContext2D[]): void {
+    for(var i = 0; i < layerNum; i++) {
+      layers[i].clearRect(0, 0, layerW, layerH);
+      layers[i].fillStyle = "white";
+      layers[i].fillRect(0, 0, layerW, layerH);
+    }
+  }
+  
   function composit(): void {
     // canvasを初期化
     gl.clearColor(0.0, 0.0, 0.0, 1.0);
