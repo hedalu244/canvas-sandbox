@@ -2,13 +2,13 @@
 function imageLoader(sources, callback = () => { }, progress = {
     registeredCount: 0,
     finishedCount: 0,
-    loadedImage: new Map()
+    imageResources: new Map()
 }) {
     progress.registeredCount += sources.length;
     sources.forEach(source => {
         const image = new Image();
         image.onload = function () {
-            progress.loadedImage.set(source, image);
+            progress.imageResources.set(source, image);
             progress.finishedCount++;
             if (progress.registeredCount === progress.finishedCount)
                 callback();
@@ -22,14 +22,14 @@ function initCamera(mainScreen) {
     const layerH = 256;
     const compositW = mainScreen.canvas.width / 2;
     const compositH = mainScreen.canvas.height / 2;
-    const compositOffsetX = -(compositW - layerW) / 2;
-    const compositOffsetY = -(compositH - layerH) / 2;
     const lightColor = create2dScreen(compositW, compositH);
     const shadowColor = create2dScreen(compositW, compositH);
     const volumeLayers = [];
     for (var i = 0; i < 6; i++)
         volumeLayers.push(create2dScreen(layerW, layerH));
-    const composition = create2dScreen(compositW, compositH);
+    const compositScreen = create2dScreen(compositW, compositH);
+    const _compositOffsetX = -(compositW - layerW) / 2;
+    const _compositOffsetY = -(compositH - layerH) / 2;
     return {
         offsetX: 0,
         offsetY: 0,
@@ -37,9 +37,9 @@ function initCamera(mainScreen) {
         lightColor,
         shadowColor,
         volumeLayers,
-        composition,
-        compositOffsetX,
-        compositOffsetY,
+        compositScreen,
+        _compositOffsetX,
+        _compositOffsetY,
     };
     function create2dScreen(width, height) {
         let canvas = document.createElement("canvas");
@@ -56,26 +56,26 @@ function composit(camera) {
     const shadowDirectionY = 3;
     for (let j = 0; j < camera.volumeLayers.length; j++) {
         //手前の影をずらしながら重ねて
-        camera.composition.globalCompositeOperation = "source-over";
+        camera.compositScreen.globalCompositeOperation = "source-over";
         for (let i = j; i < camera.volumeLayers.length; i++)
-            camera.composition.drawImage(camera.volumeLayers[i].canvas, camera.compositOffsetX + shadowDirectionX * i, camera.compositOffsetY + shadowDirectionY * i);
+            camera.compositScreen.drawImage(camera.volumeLayers[i].canvas, camera._compositOffsetX + shadowDirectionX * i, camera._compositOffsetY + shadowDirectionY * i);
         //打ち抜く
-        camera.composition.globalCompositeOperation = "destination-out";
-        camera.composition.drawImage(camera.volumeLayers[j].canvas, camera.compositOffsetX, camera.compositOffsetY);
+        camera.compositScreen.globalCompositeOperation = "destination-out";
+        camera.compositScreen.drawImage(camera.volumeLayers[j].canvas, camera._compositOffsetX, camera._compositOffsetY);
     }
-    camera.composition.globalCompositeOperation = "source-atop";
-    camera.composition.drawImage(camera.shadowColor.canvas, camera.compositOffsetX, camera.compositOffsetY);
-    camera.composition.globalCompositeOperation = "destination-over";
-    camera.composition.drawImage(camera.lightColor.canvas, camera.compositOffsetX, camera.compositOffsetY);
+    camera.compositScreen.globalCompositeOperation = "source-atop";
+    camera.compositScreen.drawImage(camera.shadowColor.canvas, camera._compositOffsetX, camera._compositOffsetY);
+    camera.compositScreen.globalCompositeOperation = "destination-over";
+    camera.compositScreen.drawImage(camera.lightColor.canvas, camera._compositOffsetX, camera._compositOffsetY);
     camera.mainScreen.clearRect(0, 0, 400, 400);
-    camera.mainScreen.drawImage(camera.composition.canvas, 0, 0, 400, 400);
+    camera.mainScreen.drawImage(camera.compositScreen.canvas, 0, 0, 400, 400);
     /*
     //次フレームの描画に備えてレイヤーを消去
     camera.lightColor.clearRect(0, 0, camera.lightColor.canvas.width, camera.shadowColor.canvas.height);
     camera.shadowColor.clearRect(0, 0, camera.shadowColor.canvas.width, camera.shadowColor.canvas.height);
     for(var i = 0; i < camera.volumeLayers.length; i++)
       camera.volumeLayers[i].clearRect(0, 0, camera.volumeLayers[i].canvas.width, camera.volumeLayers[i].canvas.height);
-    camera.composition.clearRect(0, 0, camera.composition.canvas.width, camera.composition.canvas.height);
+    camera.compositScreen.clearRect(0, 0, camera.compositScreen.canvas.width, camera.compositScreen.canvas.height);
     */
 }
 // ただの（アニメーションしない、影も落とさない）テクスチャを作る
@@ -127,13 +127,13 @@ let start;
 function animationLoop(anyGameObject, camera, imageLoadingProgress) {
     if (imageLoadingProgress.registeredCount === imageLoadingProgress.finishedCount) {
         counter++;
-        drawObject(anyGameObject, camera, imageLoadingProgress.loadedImage);
+        drawObject(anyGameObject, camera, imageLoadingProgress.imageResources);
         if (counter % 60 === 0)
             document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
         composit(camera);
     }
     else {
-        console.log("loading");
+        console.log("loading " + imageLoadingProgress.finishedCount + "/" + imageLoadingProgress.registeredCount);
         camera.mainScreen.fillText("loading", 0, 0);
     }
     requestAnimationFrame(() => animationLoop(anyGameObject, camera, imageLoadingProgress));
@@ -156,7 +156,7 @@ window.onload = () => {
     //デバッグ用
     for (let i = 0; i < camera.volumeLayers.length; i++)
         document.body.appendChild(camera.volumeLayers[i].canvas);
-    document.body.appendChild(camera.composition.canvas);
+    document.body.appendChild(camera.compositScreen.canvas);
     // sourceをID代わりにしてコンストラクタに指定
     const anyGameObject = {
         textures: [createStaticVolumeTexture("volumeTest0.png", 0, 0, 32),
