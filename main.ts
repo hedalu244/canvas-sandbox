@@ -29,46 +29,40 @@ interface Camera {
   offsetX: number;
   offsetY: number;
 
-  mainScreen: CanvasRenderingContext2D;
   volumeLayers: CanvasRenderingContext2D[];
   compositScreen: CanvasRenderingContext2D;
   shadowColor: CanvasRenderingContext2D;
   lightColor: CanvasRenderingContext2D;
   
-  _compositOffsetX: number;
-  _compositOffsetY: number;
+  compositOffsetX: number;
+  compositOffsetY: number;
 }
 
-function initCamera(mainScreen: CanvasRenderingContext2D): Camera {
-  const layerW = 256;
-  const layerH = 256;
+function initCamera(width: number, height: number): Camera {
+  const marginTop = 28;
+  const marginLeft = 28;
+  const marginRignt = 0;
+  const marginBottom = 0;
 
-  const compositW = mainScreen.canvas.width / 2;
-  const compositH = mainScreen.canvas.height / 2;
-
-  const lightColor = create2dScreen(compositW, compositH);
-  const shadowColor = create2dScreen(compositW, compositH);
+  const lightColor = create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom);
+  const shadowColor = create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom);
   const volumeLayers: CanvasRenderingContext2D[] = [];
   for(var i = 0; i < 6; i++) 
-    volumeLayers.push(create2dScreen(layerW, layerH));
+    volumeLayers.push(create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom));
 
-  const compositScreen = create2dScreen(compositW, compositH);
-  
-  const _compositOffsetX = -(compositW - layerW) / 2;
-  const _compositOffsetY = -(compositH - layerH) / 2;
+  const compositScreen = create2dScreen(width, height);
   
   return {
     offsetX: 0,
     offsetY: 0,
 
-    mainScreen,
     lightColor,
     shadowColor,
     volumeLayers,
     compositScreen,
     
-    _compositOffsetX,
-    _compositOffsetY,
+    compositOffsetX: -marginLeft,
+    compositOffsetY: -marginTop,
   };
   
   function create2dScreen(width: number, height: number): CanvasRenderingContext2D {
@@ -81,7 +75,7 @@ function initCamera(mainScreen: CanvasRenderingContext2D): Camera {
   }
 }
 
-function composit(camera: Camera): void {
+function composit(camera: Camera, mainScreen: CanvasRenderingContext2D): void {
   const shadowDirectionX = 3;
   const shadowDirectionY = 3;
 
@@ -90,25 +84,27 @@ function composit(camera: Camera): void {
     camera.compositScreen.globalCompositeOperation = "source-over";
     for(let i = j; i < camera.volumeLayers.length; i++)
       camera.compositScreen.drawImage(camera.volumeLayers[i].canvas,
-         camera._compositOffsetX + shadowDirectionX * i,
-         camera._compositOffsetY + shadowDirectionY * i);
+         camera.compositOffsetX + shadowDirectionX * i,
+         camera.compositOffsetY + shadowDirectionY * i);
     //打ち抜く
     camera.compositScreen.globalCompositeOperation = "destination-out";
     camera.compositScreen.drawImage(camera.volumeLayers[j].canvas,
-      camera._compositOffsetX,
-      camera._compositOffsetY);
+      camera.compositOffsetX,
+      camera.compositOffsetY);
   }
   camera.compositScreen.globalCompositeOperation = "source-atop";
   camera.compositScreen.drawImage(camera.shadowColor.canvas,
-    camera._compositOffsetX,
-    camera._compositOffsetY);
+    camera.compositOffsetX,
+    camera.compositOffsetY);
   camera.compositScreen.globalCompositeOperation = "destination-over";
   camera.compositScreen.drawImage(camera.lightColor.canvas,
-    camera._compositOffsetX,
-    camera._compositOffsetY);
+    camera.compositOffsetX,
+    camera.compositOffsetY);
   
-  camera.mainScreen.clearRect(0, 0, 400, 400);
-  camera.mainScreen.drawImage(camera.compositScreen.canvas, 0, 0, 400, 400);
+    
+  mainScreen.imageSmoothingEnabled = false;
+  mainScreen.clearRect(0, 0, 400, 400);
+  mainScreen.drawImage(camera.compositScreen.canvas, 0, 0, 400, 400);
 
   /*
   //次フレームの描画に備えてレイヤーを消去
@@ -182,7 +178,7 @@ function drawObject(anyGameObject: { textures:Texture[] }, camera: Camera, image
 let counter = 0;
 let start: number;
 
-function animationLoop(anyGameObject: { textures:Texture[] }, camera: Camera, imageLoadingProgress: ImageLoadingProgress): void {
+function animationLoop(anyGameObject: { textures:Texture[] }, camera: Camera, mainScreen: CanvasRenderingContext2D,  imageLoadingProgress: ImageLoadingProgress): void {
 
   if (imageLoadingProgress.registeredCount === imageLoadingProgress.finishedCount) {
     counter++;
@@ -192,37 +188,31 @@ function animationLoop(anyGameObject: { textures:Texture[] }, camera: Camera, im
     if(counter % 60 === 0) 
       document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
   
-    composit(camera);
+    composit(camera, mainScreen);
   }
   else {
     console.log("loading " + imageLoadingProgress.finishedCount + "/" + imageLoadingProgress.registeredCount);
-    camera.mainScreen.fillText("loading", 0, 0);
+    mainScreen.fillText("loading", 0, 0);
   }
   
-  requestAnimationFrame(() => animationLoop(anyGameObject, camera, imageLoadingProgress));
+  requestAnimationFrame(() => animationLoop(anyGameObject, camera, mainScreen, imageLoadingProgress));
 }
 
 window.onload = () => {
-  const canvas: HTMLCanvasElement = (() => {
-    const x = document.getElementById("canvas");
-    if　(x === null || !(x instanceof HTMLCanvasElement))
-      throw new Error("canvas not found");
-    return x;
-  })();
-  const context: CanvasRenderingContext2D = (() => {
-    const x = canvas.getContext("2d");
-    if　(x === null)
-      throw new Error("context2d not found");
-    return x;
-  })();
-  context.imageSmoothingEnabled = false;
+  const canvas = document.getElementById("canvas");
+  if　(canvas === null || !(canvas instanceof HTMLCanvasElement))
+    throw new Error("canvas not found");
+  
+  const mainScreen = canvas.getContext("2d");
+  if　(mainScreen === null)
+    throw new Error("context2d not found");
 
-  const camera = initCamera(context);
+  const camera = initCamera(mainScreen.canvas.width / 2, mainScreen.canvas.height / 2);
 
   //デバッグ用
   for(let i = 0; i < camera.volumeLayers.length; i++)
     document.body.appendChild(camera.volumeLayers[i].canvas);
-    document.body.appendChild(camera.compositScreen.canvas);
+  document.body.appendChild(camera.compositScreen.canvas);
   
   // sourceをID代わりにしてコンストラクタに指定
   const anyGameObject = {
@@ -237,5 +227,5 @@ window.onload = () => {
     start = performance.now()
   });
 
-  animationLoop(anyGameObject, camera, imageLoadingProgress)
+  animationLoop(anyGameObject, camera, mainScreen, imageLoadingProgress)
 }

@@ -17,29 +17,26 @@ function imageLoader(sources, callback = () => { }, progress = {
     });
     return progress;
 }
-function initCamera(mainScreen) {
-    const layerW = 256;
-    const layerH = 256;
-    const compositW = mainScreen.canvas.width / 2;
-    const compositH = mainScreen.canvas.height / 2;
-    const lightColor = create2dScreen(compositW, compositH);
-    const shadowColor = create2dScreen(compositW, compositH);
+function initCamera(width, height) {
+    const marginTop = 28;
+    const marginLeft = 28;
+    const marginRignt = 0;
+    const marginBottom = 0;
+    const lightColor = create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom);
+    const shadowColor = create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom);
     const volumeLayers = [];
     for (var i = 0; i < 6; i++)
-        volumeLayers.push(create2dScreen(layerW, layerH));
-    const compositScreen = create2dScreen(compositW, compositH);
-    const _compositOffsetX = -(compositW - layerW) / 2;
-    const _compositOffsetY = -(compositH - layerH) / 2;
+        volumeLayers.push(create2dScreen(marginLeft + width + marginRignt, marginTop + height + marginBottom));
+    const compositScreen = create2dScreen(width, height);
     return {
         offsetX: 0,
         offsetY: 0,
-        mainScreen,
         lightColor,
         shadowColor,
         volumeLayers,
         compositScreen,
-        _compositOffsetX,
-        _compositOffsetY,
+        compositOffsetX: -marginLeft,
+        compositOffsetY: -marginTop,
     };
     function create2dScreen(width, height) {
         let canvas = document.createElement("canvas");
@@ -51,24 +48,25 @@ function initCamera(mainScreen) {
         return context;
     }
 }
-function composit(camera) {
+function composit(camera, mainScreen) {
     const shadowDirectionX = 3;
     const shadowDirectionY = 3;
     for (let j = 0; j < camera.volumeLayers.length; j++) {
         //手前の影をずらしながら重ねて
         camera.compositScreen.globalCompositeOperation = "source-over";
         for (let i = j; i < camera.volumeLayers.length; i++)
-            camera.compositScreen.drawImage(camera.volumeLayers[i].canvas, camera._compositOffsetX + shadowDirectionX * i, camera._compositOffsetY + shadowDirectionY * i);
+            camera.compositScreen.drawImage(camera.volumeLayers[i].canvas, camera.compositOffsetX + shadowDirectionX * i, camera.compositOffsetY + shadowDirectionY * i);
         //打ち抜く
         camera.compositScreen.globalCompositeOperation = "destination-out";
-        camera.compositScreen.drawImage(camera.volumeLayers[j].canvas, camera._compositOffsetX, camera._compositOffsetY);
+        camera.compositScreen.drawImage(camera.volumeLayers[j].canvas, camera.compositOffsetX, camera.compositOffsetY);
     }
     camera.compositScreen.globalCompositeOperation = "source-atop";
-    camera.compositScreen.drawImage(camera.shadowColor.canvas, camera._compositOffsetX, camera._compositOffsetY);
+    camera.compositScreen.drawImage(camera.shadowColor.canvas, camera.compositOffsetX, camera.compositOffsetY);
     camera.compositScreen.globalCompositeOperation = "destination-over";
-    camera.compositScreen.drawImage(camera.lightColor.canvas, camera._compositOffsetX, camera._compositOffsetY);
-    camera.mainScreen.clearRect(0, 0, 400, 400);
-    camera.mainScreen.drawImage(camera.compositScreen.canvas, 0, 0, 400, 400);
+    camera.compositScreen.drawImage(camera.lightColor.canvas, camera.compositOffsetX, camera.compositOffsetY);
+    mainScreen.imageSmoothingEnabled = false;
+    mainScreen.clearRect(0, 0, 400, 400);
+    mainScreen.drawImage(camera.compositScreen.canvas, 0, 0, 400, 400);
     /*
     //次フレームの描画に備えてレイヤーを消去
     camera.lightColor.clearRect(0, 0, camera.lightColor.canvas.width, camera.shadowColor.canvas.height);
@@ -124,35 +122,28 @@ function drawObject(anyGameObject, camera, imageResources) {
 //デバッグ用
 let counter = 0;
 let start;
-function animationLoop(anyGameObject, camera, imageLoadingProgress) {
+function animationLoop(anyGameObject, camera, mainScreen, imageLoadingProgress) {
     if (imageLoadingProgress.registeredCount === imageLoadingProgress.finishedCount) {
         counter++;
         drawObject(anyGameObject, camera, imageLoadingProgress.imageResources);
         if (counter % 60 === 0)
             document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
-        composit(camera);
+        composit(camera, mainScreen);
     }
     else {
         console.log("loading " + imageLoadingProgress.finishedCount + "/" + imageLoadingProgress.registeredCount);
-        camera.mainScreen.fillText("loading", 0, 0);
+        mainScreen.fillText("loading", 0, 0);
     }
-    requestAnimationFrame(() => animationLoop(anyGameObject, camera, imageLoadingProgress));
+    requestAnimationFrame(() => animationLoop(anyGameObject, camera, mainScreen, imageLoadingProgress));
 }
 window.onload = () => {
-    const canvas = (() => {
-        const x = document.getElementById("canvas");
-        if (x === null || !(x instanceof HTMLCanvasElement))
-            throw new Error("canvas not found");
-        return x;
-    })();
-    const context = (() => {
-        const x = canvas.getContext("2d");
-        if (x === null)
-            throw new Error("context2d not found");
-        return x;
-    })();
-    context.imageSmoothingEnabled = false;
-    const camera = initCamera(context);
+    const canvas = document.getElementById("canvas");
+    if (canvas === null || !(canvas instanceof HTMLCanvasElement))
+        throw new Error("canvas not found");
+    const mainScreen = canvas.getContext("2d");
+    if (mainScreen === null)
+        throw new Error("context2d not found");
+    const camera = initCamera(mainScreen.canvas.width / 2, mainScreen.canvas.height / 2);
     //デバッグ用
     for (let i = 0; i < camera.volumeLayers.length; i++)
         document.body.appendChild(camera.volumeLayers[i].canvas);
@@ -168,5 +159,5 @@ window.onload = () => {
     let imageLoadingProgress = imageLoader(["volumeTest0.png", "volumeTest1.png", "volumeTest2.png"], () => {
         start = performance.now();
     });
-    animationLoop(anyGameObject, camera, imageLoadingProgress);
+    animationLoop(anyGameObject, camera, mainScreen, imageLoadingProgress);
 };
