@@ -26,15 +26,14 @@ function imageLoader(sources: string[], callback: ()=>void = () => { }, progress
 }
 
 interface Camera {
-  layerNum: 8;
-
-  layers: CanvasRenderingContext2D[];
-  composition: CanvasRenderingContext2D;
-
   offsetX: number;
   offsetY: number;
 
   mainScreen: CanvasRenderingContext2D;
+  volumeLayers: CanvasRenderingContext2D[];
+  composition: CanvasRenderingContext2D;
+  shadowColor: CanvasRenderingContext2D;
+  lightColor: CanvasRenderingContext2D;
   
   compositOffsetX: number;
   compositOffsetY: number;
@@ -44,7 +43,6 @@ interface Camera {
 }
 
 function initCamera(mainScreen: CanvasRenderingContext2D): Camera {
-  const layerNum = 8;
   const layerW = 256;
   const layerH = 256;
 
@@ -57,22 +55,24 @@ function initCamera(mainScreen: CanvasRenderingContext2D): Camera {
   const shadowDirectionX = 3;
   const shadowDirectionY = 3;
 
-  const layers: CanvasRenderingContext2D[] = [];
-  for(var i = 0; i < layerNum; i++) 
-    layers.push(create2dScreen(layerW, layerH));
+  const lightColor = create2dScreen(compositW, compositH);
+  const shadowColor = create2dScreen(compositW, compositH);
+
+  const volumeLayers: CanvasRenderingContext2D[] = [];
+  for(var i = 0; i < 6; i++) 
+    volumeLayers.push(create2dScreen(layerW, layerH));
 
   const composition = create2dScreen(compositW, compositH);
   
   return {
-    layerNum,
-
-    layers,
-    composition,
-
     offsetX: 0,
     offsetY: 0,
 
     mainScreen,
+    lightColor,
+    shadowColor,
+    volumeLayers,
+    composition,
     
     compositOffsetX,
     compositOffsetY,
@@ -92,36 +92,39 @@ function initCamera(mainScreen: CanvasRenderingContext2D): Camera {
 }
 
 function composit(camera: Camera): void {
-  camera.composition.clearRect(0, 0, camera.composition.canvas.width, camera.composition.canvas.height);
-  
-  for(let j = 2; j < camera.layerNum; j++) {
+  for(let j = 0; j < camera.volumeLayers.length; j++) {
     //手前の影をずらしながら重ねて
     camera.composition.globalCompositeOperation = "source-over";
-    for(let i = j; i < camera.layerNum; i++)
-      camera.composition.drawImage(camera.layers[i].canvas,
-         camera.compositOffsetX + camera.shadowDirectionX * (i - 2),
-         camera.compositOffsetY + camera.shadowDirectionY * (i - 2));
+    for(let i = j; i < camera.volumeLayers.length; i++)
+      camera.composition.drawImage(camera.volumeLayers[i].canvas,
+         camera.compositOffsetX + camera.shadowDirectionX * i,
+         camera.compositOffsetY + camera.shadowDirectionY * i);
     //打ち抜く
     camera.composition.globalCompositeOperation = "destination-out";
-    camera.composition.drawImage(camera.layers[j].canvas,
+    camera.composition.drawImage(camera.volumeLayers[j].canvas,
       camera.compositOffsetX,
       camera.compositOffsetY);
   }
   camera.composition.globalCompositeOperation = "source-atop";
-  camera.composition.drawImage(camera.layers[1].canvas,
+  camera.composition.drawImage(camera.shadowColor.canvas,
     camera.compositOffsetX,
     camera.compositOffsetY);
   camera.composition.globalCompositeOperation = "destination-over";
-  camera.composition.drawImage(camera.layers[0].canvas,
+  camera.composition.drawImage(camera.lightColor.canvas,
     camera.compositOffsetX,
     camera.compositOffsetY);
   
   camera.mainScreen.clearRect(0, 0, 400, 400);
   camera.mainScreen.drawImage(camera.composition.canvas, 0, 0, 400, 400);
 
+  /*
   //次フレームの描画に備えてレイヤーを消去
-  for(var i = 0; i < camera.layerNum; i++)
-    camera.layers[i].clearRect(0, 0, camera.layers[i].canvas.width, camera.layers[i].canvas.height);
+  camera.lightColor.clearRect(0, 0, camera.lightColor.canvas.width, camera.shadowColor.canvas.height);
+  camera.shadowColor.clearRect(0, 0, camera.shadowColor.canvas.width, camera.shadowColor.canvas.height);
+  for(var i = 0; i < camera.volumeLayers.length; i++)
+    camera.volumeLayers[i].clearRect(0, 0, camera.volumeLayers[i].canvas.width, camera.volumeLayers[i].canvas.height);
+  camera.composition.clearRect(0, 0, camera.composition.canvas.width, camera.composition.canvas.height);
+  */
 }
 
 interface Texture {
@@ -135,7 +138,7 @@ function createStaticTexture(source: string, textureOffsetX: number, textureOffs
     draw: (x:number, y:number, camera:Camera, resources:ImageResources) => {
       const image = resources.get(source);
       if (image === undefined) { console.log("not loaded yet"); return; }
-        camera.layers[0].drawImage(image,
+        camera.lightColor.drawImage(image,
           camera.offsetX + textureOffsetX + x,
           camera.offsetY + textureOffsetY + y);
     }
@@ -147,8 +150,17 @@ function createStaticVolumeTexture(source: string, textureOffsetX:number, textur
     draw: (x:number, y:number, camera:Camera, resources:ImageResources) => {
       const image = resources.get(source);
       if (image === undefined) { console.log("not loaded yet"); return; }
-      for(var i = 0; i < camera.layerNum; i++)
-        camera.layers[i].drawImage(image, 0, i * sh, image.width, sh,
+      
+      camera.lightColor.drawImage(image, 0, 0, image.width, sh,
+        camera.offsetX + textureOffsetX + x,
+        camera.offsetY + textureOffsetY + y, image.width, sh);
+
+      camera.shadowColor.drawImage(image, 0, sh, image.width, sh,
+        camera.offsetX + textureOffsetX + x,
+        camera.offsetY + textureOffsetY + y, image.width, sh);
+
+      for(var i = 0; i < camera.volumeLayers.length; i++)
+        camera.volumeLayers[i].drawImage(image, 0, (i + 2) * sh, image.width, sh,
           camera.offsetX + textureOffsetX + x,
           camera.offsetY + textureOffsetY + y, image.width, sh);
     }
@@ -179,8 +191,8 @@ function main(){
 
   const camera = initCamera(context);
 
-  for(let i = 0; i < camera.layerNum; i++)
-    document.body.appendChild(camera.layers[i].canvas);
+  for(let i = 0; i < camera.volumeLayers.length; i++)
+    document.body.appendChild(camera.volumeLayers[i].canvas);
     document.body.appendChild(camera.composition.canvas);
 
     let counter = 0;
