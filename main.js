@@ -24,8 +24,6 @@ function initCamera(mainScreen) {
     const compositH = mainScreen.canvas.height / 2;
     const compositOffsetX = -(compositW - layerW) / 2;
     const compositOffsetY = -(compositH - layerH) / 2;
-    const shadowDirectionX = 3;
-    const shadowDirectionY = 3;
     const lightColor = create2dScreen(compositW, compositH);
     const shadowColor = create2dScreen(compositW, compositH);
     const volumeLayers = [];
@@ -42,8 +40,6 @@ function initCamera(mainScreen) {
         composition,
         compositOffsetX,
         compositOffsetY,
-        shadowDirectionX,
-        shadowDirectionY,
     };
     function create2dScreen(width, height) {
         let canvas = document.createElement("canvas");
@@ -56,11 +52,13 @@ function initCamera(mainScreen) {
     }
 }
 function composit(camera) {
+    const shadowDirectionX = 3;
+    const shadowDirectionY = 3;
     for (let j = 0; j < camera.volumeLayers.length; j++) {
         //手前の影をずらしながら重ねて
         camera.composition.globalCompositeOperation = "source-over";
         for (let i = j; i < camera.volumeLayers.length; i++)
-            camera.composition.drawImage(camera.volumeLayers[i].canvas, camera.compositOffsetX + camera.shadowDirectionX * i, camera.compositOffsetY + camera.shadowDirectionY * i);
+            camera.composition.drawImage(camera.volumeLayers[i].canvas, camera.compositOffsetX + shadowDirectionX * i, camera.compositOffsetY + shadowDirectionY * i);
         //打ち抜く
         camera.composition.globalCompositeOperation = "destination-out";
         camera.composition.drawImage(camera.volumeLayers[j].canvas, camera.compositOffsetX, camera.compositOffsetY);
@@ -108,13 +106,39 @@ function createStaticVolumeTexture(source, textureOffsetX, textureOffsetY, sh) {
         }
     };
 }
-// 使いたい画像を配列で指定してロードにかける。ロードが終わったときに呼ぶ関数を指定しとく。第三引数は以前のLoadingProgressに引き続きロードしたい時に使う。
-let imageLoadingProgress = imageLoader(["volumeTest0.png", "volumeTest1.png", "volumeTest2.png"], main);
-// sourceをID代わりにしてコンストラクタに指定
-let tex0 = createStaticVolumeTexture("volumeTest0.png", 0, 0, 32);
-let tex1 = createStaticVolumeTexture("volumeTest1.png", 0, 0, 32);
-let tex2 = createStaticVolumeTexture("volumeTest2.png", 0, 0, 32);
-function main() {
+function drawObject(anyGameObject, camera, imageResources) {
+    anyGameObject.textures[0].draw(64, 64, camera, imageResources);
+    anyGameObject.textures[0].draw(96, 64, camera, imageResources);
+    anyGameObject.textures[0].draw(128, 64, camera, imageResources);
+    anyGameObject.textures[0].draw(64, 96, camera, imageResources);
+    anyGameObject.textures[0].draw(96, 96, camera, imageResources);
+    anyGameObject.textures[0].draw(128, 96, camera, imageResources);
+    anyGameObject.textures[0].draw(64, 128, camera, imageResources);
+    anyGameObject.textures[0].draw(96, 128, camera, imageResources);
+    anyGameObject.textures[0].draw(128, 128, camera, imageResources);
+    anyGameObject.textures[1].draw(80, 80, camera, imageResources);
+    anyGameObject.textures[1].draw(100, 80, camera, imageResources);
+    anyGameObject.textures[1].draw(80, 100, camera, imageResources);
+    anyGameObject.textures[2].draw(100, 93, camera, imageResources);
+}
+//デバッグ用
+let counter = 0;
+let start;
+function animationLoop(anyGameObject, camera, imageLoadingProgress) {
+    if (imageLoadingProgress.registeredCount === imageLoadingProgress.finishedCount) {
+        counter++;
+        drawObject(anyGameObject, camera, imageLoadingProgress.loadedImage);
+        if (counter % 60 === 0)
+            document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
+        composit(camera);
+    }
+    else {
+        console.log("loading");
+        camera.mainScreen.fillText("loading", 0, 0);
+    }
+    requestAnimationFrame(() => animationLoop(anyGameObject, camera, imageLoadingProgress));
+}
+window.onload = () => {
     const canvas = (() => {
         const x = document.getElementById("canvas");
         if (x === null || !(x instanceof HTMLCanvasElement))
@@ -129,30 +153,20 @@ function main() {
     })();
     context.imageSmoothingEnabled = false;
     const camera = initCamera(context);
+    //デバッグ用
     for (let i = 0; i < camera.volumeLayers.length; i++)
         document.body.appendChild(camera.volumeLayers[i].canvas);
     document.body.appendChild(camera.composition.canvas);
-    let counter = 0;
-    let start = performance.now();
-    loop();
-    function loop() {
-        counter++;
-        tex0.draw(64, 64, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(96, 64, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(128, 64, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(64, 96, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(96, 96, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(128, 96, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(64, 128, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(96, 128, camera, imageLoadingProgress.loadedImage);
-        tex0.draw(128, 128, camera, imageLoadingProgress.loadedImage);
-        tex1.draw(80, 80, camera, imageLoadingProgress.loadedImage);
-        tex1.draw(100, 80, camera, imageLoadingProgress.loadedImage);
-        tex1.draw(80, 100, camera, imageLoadingProgress.loadedImage);
-        tex2.draw(100, 93, camera, imageLoadingProgress.loadedImage);
-        if (counter % 60 === 0)
-            document.getElementById("fps").innerText = (counter * 1000 / (performance.now() - start));
-        composit(camera);
-        requestAnimationFrame(loop);
-    }
-}
+    // sourceをID代わりにしてコンストラクタに指定
+    const anyGameObject = {
+        textures: [createStaticVolumeTexture("volumeTest0.png", 0, 0, 32),
+            createStaticVolumeTexture("volumeTest1.png", 0, 0, 32),
+            createStaticVolumeTexture("volumeTest2.png", 0, 0, 32)
+        ]
+    };
+    // 使いたい画像を配列で指定してロードにかける。ロードが終わったときに呼ぶ関数を指定しとく。第三引数は以前のLoadingProgressに引き続きロードしたい時に使う。
+    let imageLoadingProgress = imageLoader(["volumeTest0.png", "volumeTest1.png", "volumeTest2.png"], () => {
+        start = performance.now();
+    });
+    animationLoop(anyGameObject, camera, imageLoadingProgress);
+};
